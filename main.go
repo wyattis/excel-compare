@@ -4,7 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/wyattis/z/zflag"
@@ -60,6 +62,10 @@ func run() (err error) {
 		return
 	}
 
+	if len(filesA) != len(filesB) {
+		return fmt.Errorf("Length of files to compare don't match: %d != %d", len(filesA), len(filesB))
+	}
+
 	for i := 0; i < len(filesA); i++ {
 		fmt.Printf("comparing %s with %s\n", filesA[i], filesB[i])
 		diff, err := compareFiles(filesA[i], filesB[i], sheet, sheet)
@@ -113,7 +119,7 @@ func compareSheets(a, b *excelize.File, sheetA, sheetB string) (diff []CellDiff,
 	}
 	// fmt.Println("sheet dimensions", aDim, bDim)
 	if aDim != bDim {
-		err = errors.New("dimensions don't match")
+		err = fmt.Errorf("Dimensions in a (%s) and b (%s) don't match", aDim, bDim)
 		return
 	}
 	aRows, err := a.Rows(sheetA)
@@ -148,7 +154,7 @@ func compareSheets(a, b *excelize.File, sheetA, sheetB string) (diff []CellDiff,
 		}
 		for col := 0; col < len(aCols); col++ {
 			aVal, bVal := aCols[col], bCols[col]
-			if aCols[col] != bCols[col] {
+			if !valuesAreEqual(aVal, bVal) {
 				diff = append(diff, CellDiff{
 					Cell: getCellVal(row, col),
 					Row:  row,
@@ -172,6 +178,26 @@ func compareSheets(a, b *excelize.File, sheetA, sheetB string) (diff []CellDiff,
 	}
 
 	return
+}
+
+func valuesAreEqual(a, b string) bool {
+	if a == b {
+		return true
+	}
+	aClean, bClean := strings.ReplaceAll(a, ",", ""), strings.ReplaceAll(b, ",", "")
+	aInt, err1 := strconv.Atoi(aClean)
+	bInt, err2 := strconv.Atoi(bClean)
+	if aInt == bInt && err1 == nil && err2 == nil {
+		return true
+	}
+	aFloat, err1 := strconv.ParseFloat(aClean, 64)
+	bFloat, err2 := strconv.ParseFloat(bClean, 64)
+	if aFloat == bFloat && err1 == nil && err2 == nil {
+		return true
+	} else if math.Round(aFloat) == math.Round(bFloat) && err1 == nil && err2 == nil {
+		return true
+	}
+	return strings.TrimSpace(a) == strings.TrimSpace(b)
 }
 
 var Example = `
